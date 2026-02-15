@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Super Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', sans-serif;
+    }
+
+    body {
+      height: 100vh;
+      background: linear-gradient(135deg, #1e3c72, #2a5298);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card {
+      background: #ffffff;
+      width: 100%;
+      max-width: 400px;
+      padding: 35px;
+      border-radius: 15px;
+      box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+    }
+
+    .card h2 {
+      text-align: center;
+      margin-bottom: 25px;
+      color: #333;
+    }
+
+    .input-group {
+      margin-bottom: 18px;
+    }
+
+    .input-group input {
+      width: 100%;
+      padding: 12px 15px;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+      font-size: 14px;
+      transition: 0.3s;
+    }
+
+    .input-group input:focus {
+      border-color: #2a5298;
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(42,82,152,0.2);
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      background: #2a5298;
+      color: white;
+      font-size: 15px;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    button:hover {
+      background: #1e3c72;
+    }
+
+    @media (max-width: 480px) {
+      .card {
+        margin: 20px;
+        padding: 25px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="card">
+    <h2>Create Restaurant</h2>
+
+    <div class="input-group">
+      <input id="name" placeholder="Restaurant Name">
+    </div>
+
+    <div class="input-group">
+      <input id="slug" placeholder="Slug (kfc)">
+    </div>
+
+    <div class="input-group">
+      <input id="color" placeholder="Theme Color (#ff0000)">
+    </div>
+
+    <button onclick="create()">Create Restaurant</button>
+  </div>
+
+  <script>
+    const key = "250235";
+
+    async function create() {
+      const name = document.getElementById("name").value;
+      const slug = document.getElementById("slug").value;
+      const theme_color = document.getElementById("color").value;
+
+      await fetch(`/api/restaurants?key=${key}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, slug, theme_color })
+      });
+
+      alert("Created Successfully!");
+    }
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "menu-image-generator",
+  "version": "1.0.0",
+  "scripts": {
+    "generate": "node generate-images.js",
+    "import": "node import-excel.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "canvas": "^3.2.1",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "multer": "^2.0.2",
+    "sqlite3": "^5.1.7",
+    "xlsx": "^0.18.5"
+  }
+}

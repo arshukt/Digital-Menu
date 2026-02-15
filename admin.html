@@ -1,0 +1,207 @@
+<!doctype html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Menu Admin</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background: #f2f4f7;
+        margin: 0;
+        padding: 20px;
+        display: flex;
+        justify-content: center;
+      }
+
+      .container {
+        width: 100%;
+        max-width: 420px;
+        background: #ffffff;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+      }
+
+      h2 {
+        text-align: center;
+        margin-bottom: 20px;
+      }
+      h3 {
+        margin-top: 25px;
+        margin-bottom: 10px;
+      }
+
+      .section {
+        margin-bottom: 25px;
+      }
+
+      input,
+      select {
+        width: 100%;
+        padding: 10px;
+        margin-bottom: 10px;
+        border-radius: 6px;
+        border: 1px solid #ddd;
+        font-size: 14px;
+      }
+
+      button {
+        padding: 8px 12px;
+        border-radius: 6px;
+        border: none;
+        cursor: pointer;
+        font-size: 13px;
+      }
+
+      .primary {
+        background: #28a745;
+        color: #fff;
+        width: 100%;
+        margin-bottom: 10px;
+      }
+
+      .delete {
+        background: #dc3545;
+        color: #fff;
+      }
+
+      .card {
+        background: #f9f9f9;
+        padding: 12px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .add-btn {
+        position: fixed;
+        bottom: 25px;
+        right: 25px;
+        width: 55px;
+        height: 55px;
+        border-radius: 50%;
+        background: #28a745;
+        color: #fff;
+        font-size: 26px;
+        border: none;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        cursor: pointer;
+      }
+
+      .modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        justify-content: center;
+        align-items: center;
+      }
+
+      .modal-content {
+        background: white;
+        padding: 20px;
+        border-radius: 12px;
+        width: 90%;
+        max-width: 400px;
+      }
+      h1 {
+        font-size: 26px;
+        font-weight: 700;
+        text-align: center;
+        margin-bottom: 25px;
+        color: #000000;
+        letter-spacing: 0.5px;
+        position: relative;
+      }
+
+      h1::after {
+        content: "";
+        width: 80px;
+        height: 3px;
+        background: #000000;
+        display: block;
+        margin: 10px auto 0;
+        border-radius: 2px;
+      }
+
+      .section h2 {
+        font-size: 20px;
+        font-weight: 700;
+        color: #000000; /* your theme color */
+        margin-bottom: 12px;
+        border-left: 4px solid #000000;
+        padding-left: 8px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+      <h1>Menu Admin</h1>
+
+      <!-- Logo -->
+      <div class="section">
+        <h2>Restaurant Logo</h2>
+        <input type="file" id="logoFile" accept="image/*" />
+        <button class="primary" id="uploadLogoBtn">Upload Logo</button>
+        <img id="currentLogo" style="max-width: 100px; margin-top: 10px" />
+      </div>
+
+      <!-- Excel Import -->
+      <div class="section">
+        <h2>Import Excel</h2>
+        <input type="file" id="excelFile" accept=".xlsx,.xls" />
+        <button class="primary" id="importBtn">Upload & Import</button>
+      </div>
+
+      <!-- Categories -->
+      <div class="section">
+        <h2>Categories</h2>
+        <input id="newCategoryName" placeholder="New Category Name" />
+        <button class="primary" id="addCategoryBtn">Save</button>
+        <div id="categoryList"></div>
+      </div>
+
+      <!-- Products -->
+      <div class="section">
+        <h2>Products</h2>
+
+        <input
+          type="text"
+          id="adminProductSearch"
+          placeholder="Search product..."
+        />
+
+        <div id="productList"></div>
+      </div>
+    </div>
+
+    <button class="add-btn" id="openModalBtn">+</button>
+
+    <div class="modal" id="productModal">
+      <div class="modal-content">
+        <h3>Add Product</h3>
+        <input id="productName" placeholder="Product Name (English)" />
+        <input id="productNameAr" placeholder="Product Name (Arabic)" />
+        <input id="productImage" placeholder="Image URL" />
+        <input id="productPrice" placeholder="Price" />
+        <select id="productCategory"></select>
+        <button class="primary" id="saveProductBtn">Save</button>
+        <button onclick="closeModal()">Cancel</button>
+      </div>
+    </div>
+
+    <script>
+      function closeModal() {
+        document.getElementById("productModal").style.display = "none";
+      }
+      document.getElementById("openModalBtn").onclick = () => {
+        document.getElementById("productModal").style.display = "flex";
+      };
+    </script>
+
+    <script src="/admin.js"></script>
+  </body>
+</html>
