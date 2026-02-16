@@ -128,13 +128,14 @@ function renderProducts(query = "") {
     card.className = "item-card";
 
     card.innerHTML = `
-  <div class="card-image">
-    <img src="${p.image ? "/" + p.image : "/placeholder.png"}"
-         alt="${p.name_en}">
-  </div>
+  <img 
+    src="${p.image ? "/" + p.image : "/placeholder.png"}"
+    alt="${p.name_en}"
+  />
 
-  <div class="card-content">
+  <div class="item-info">
     <div class="item-name">${p.name_en}</div>
+
     ${p.name_ar ? `<div class="item-name-ar">${p.name_ar}</div>` : ""}
 
     <div class="qty-wrapper">
@@ -145,7 +146,7 @@ function renderProducts(query = "") {
 
     <button class="whatsapp-btn"
       onclick="sendWhatsAppOrder(${p.id}, \`${p.name_en}\`)">
-      🛒 Order Now
+      Order Now
     </button>
   </div>
 `;

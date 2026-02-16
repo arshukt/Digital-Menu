@@ -38,13 +38,25 @@ function darkenColor(hex, percent) {
 }
 
 // Generate images
+// menu.categories.forEach((category) => {
+//   category.items.forEach((item) => {
+//     const fileName =
+//       item.name
+//         .toLowerCase()
+//         .replace(/[^a-z0-9]+/g, "-")
+//         .replace(/(^-|-$)/g, "") + ".jpg";
+
+//     const imagePath = path.join(imagesDir, fileName);
 menu.categories.forEach((category) => {
   category.items.forEach((item) => {
-    const fileName =
-      item.name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "") + ".jpg";
+    const baseName = item.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
+
+    const uniqueSuffix = Date.now() + "-" + Math.floor(Math.random() * 1000);
+
+    const fileName = `${baseName}-${uniqueSuffix}.jpg`;
 
     const imagePath = path.join(imagesDir, fileName);
 

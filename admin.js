@@ -234,6 +234,7 @@ async function saveProduct() {
   const name_ar = document.getElementById("productNameAr").value.trim();
   const price = document.getElementById("productPrice").value.trim();
   const category_id = document.getElementById("productCategory").value;
+  const imageFile = document.getElementById("productImageFile").files[0];
 
   if (!name_en || !price || !category_id) {
     alert("Fill required fields");
@@ -242,21 +243,26 @@ async function saveProduct() {
   }
 
   try {
-    let res;
+    const formData = new FormData();
+    formData.append("name_en", name_en);
+    formData.append("name_ar", name_ar);
+    formData.append("price", price);
+    formData.append("category_id", category_id);
 
-    if (editingProductId) {
-      res = await fetch(`/api/products/${editingProductId}?key=${ADMIN_KEY}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name_en, name_ar, price, category_id }),
-      });
-    } else {
-      res = await fetch(`/api/products/${SLUG}?key=${ADMIN_KEY}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name_en, name_ar, price, category_id }),
-      });
+    if (imageFile) {
+      formData.append("image", imageFile);
     }
+
+    let url = editingProductId
+      ? `/api/products/${editingProductId}?key=${ADMIN_KEY}`
+      : `/api/products/${SLUG}?key=${ADMIN_KEY}`;
+
+    let method = editingProductId ? "PUT" : "POST";
+
+    const res = await fetch(url, {
+      method,
+      body: formData
+    });
 
     if (!res.ok) throw new Error();
 
@@ -264,13 +270,16 @@ async function saveProduct() {
 
     editingProductId = null;
     document.getElementById("productModal").style.display = "none";
+
     await loadProducts();
-  } catch {
+
+  } catch (err) {
     alert("Save failed");
   }
 
   btn.disabled = false;
 }
+
 
 function editProduct(id, name_en, name_ar, price, category_id) {
   editingProductId = id;

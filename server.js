@@ -157,43 +157,61 @@ app.get("/api/products/:slug", (req, res) => {
   );
 });
 
-app.post("/api/products/:slug", checkAdmin, (req, res) => {
-  const { name_en, name_ar, price, category_id } = req.body;
+app.post(
+  "/api/products/:slug",
+  checkAdmin,
+  upload.single("image"), // 👈 ADD THIS
+  (req, res) => {
+    const { name_en, name_ar, price, category_id } = req.body;
 
-  db.get(
-    `SELECT * FROM restaurants WHERE slug=?`,
-    [req.params.slug],
-    (err, r) => {
-      const img = generateImage(name_en, r.theme_color);
+    db.get(
+      `SELECT * FROM restaurants WHERE slug=?`,
+      [req.params.slug],
+      (err, r) => {
+        const imagePath = req.file
+          ? `uploads/${req.file.filename}`
+          : generateImage(name_en, r.theme_color);
 
-      db.run(
-        `INSERT INTO products
-         (name_en,name_ar,price,category_id,restaurant_id,image)
-         VALUES (?,?,?,?,?,?)`,
-        [name_en, name_ar, price, category_id, r.id, img],
-        () => res.json({ success: true }),
-      );
-    },
-  );
-});
+        db.run(
+          `INSERT INTO products
+   (name_en,name_ar,price,category_id,restaurant_id,image)
+   VALUES (?,?,?,?,?,?)`,
+          [name_en, name_ar, price, category_id, r.id, imagePath],
+          () => res.json({ success: true }),
+        );
+      },
+    );
+  },
+);
 
-app.put("/api/products/:id", checkAdmin, (req, res) => {
+app.put("/api/products/:id", checkAdmin, upload.single("image"), (req, res) => {
   const { name_en, name_ar, price, category_id } = req.body;
 
   if (!name_en || !price || !category_id)
     return res.status(400).json({ error: "Missing fields" });
 
-  db.run(
-    `UPDATE products
-     SET name_en=?, name_ar=?, price=?, category_id=?
-     WHERE id=?`,
-    [name_en, name_ar, price, category_id, req.params.id],
-    function (err) {
-      if (err) return res.status(500).json({ error: err.message });
+  let imagePath = null;
 
-      res.json({ success: true });
-    },
-  );
+  if (req.file) {
+    imagePath = `uploads/${req.file.filename}`;
+  }
+
+  const query = imagePath
+    ? `UPDATE products 
+         SET name_en=?, name_ar=?, price=?, category_id=?, image=? 
+         WHERE id=?`
+    : `UPDATE products 
+         SET name_en=?, name_ar=?, price=?, category_id=? 
+         WHERE id=?`;
+
+  const params = imagePath
+    ? [name_en, name_ar, price, category_id, imagePath, req.params.id]
+    : [name_en, name_ar, price, category_id, req.params.id];
+
+  db.run(query, params, function (err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ success: true });
+  });
 });
 
 /* ================= LOGO ================= */
@@ -215,8 +233,7 @@ app.post(
   checkAdmin,
   upload.single("file"),
   async (req, res) => {
-    if (!req.file)
-      return res.status(400).json({ error: "No file uploaded" });
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
     try {
       const workbook = XLSX.readFile(req.file.path);
@@ -245,7 +262,7 @@ app.post(
                 db.run(
                   `INSERT OR IGNORE INTO categories (name, restaurant_id)
                    VALUES (?, ?)`,
-                  [categoryName, restaurant.id]
+                  [categoryName, restaurant.id],
                 );
               }
             });
@@ -264,7 +281,7 @@ app.post(
 
                   const imagePath = generateImage(
                     row.name_en,
-                    restaurant.theme_color
+                    restaurant.theme_color,
                   );
 
                   db.run(
@@ -278,26 +295,46 @@ app.post(
                       cat.id,
                       restaurant.id,
                       imagePath,
-                    ]
+                    ],
                   );
-                }
+                },
               );
             });
 
             db.run("COMMIT", (err) => {
-              if (err)
-                return res.status(500).json({ error: err.message });
+              if (err) return res.status(500).json({ error: err.message });
 
               res.json({ success: true });
             });
           });
-        }
+        },
       );
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: err.message });
     }
-  }
+  },
+);
+
+app.post(
+  "/api/upload-product-image/:id",
+  checkAdmin,
+  upload.single("image"),
+  (req, res) => {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+    const imagePath = `uploads/${req.file.filename}`;
+
+    db.run(
+      "UPDATE products SET image=? WHERE id=?",
+      [imagePath, req.params.id],
+      function (err) {
+        if (err) return res.status(500).json({ error: err.message });
+
+        res.json({ success: true, image: imagePath });
+      },
+    );
+  },
 );
 
 /* ================= ROUTES ================= */
