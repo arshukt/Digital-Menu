@@ -6,7 +6,7 @@ const { createCanvas } = require("canvas");
 const fs = require("fs");
 const path = require("path");
 
-const ADMIN_KEY = "250235"; // 🔐 change this
+const ADMIN_KEY = "250235";
 
 const app = express();
 app.use(express.json());
@@ -15,17 +15,22 @@ app.use("/uploads", express.static("uploads"));
 
 if (!fs.existsSync("uploads")) fs.mkdirSync("uploads");
 
-const upload = multer({ dest: "uploads/" });
+const upload = multer({
+  dest: "uploads/",
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+});
 const dbPath = path.join(__dirname, "menu.db");
 const db = new sqlite3.Database(dbPath);
 
 /* ================= DATABASE ================= */
+
 db.serialize(() => {
   db.run(`
     CREATE TABLE IF NOT EXISTS restaurants (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT,
       slug TEXT UNIQUE,
+      whatsapp_number TEXT,
       theme_color TEXT,
       currency TEXT,
       logo TEXT
@@ -59,28 +64,39 @@ db.serialize(() => {
 });
 
 /* ================= SECURITY ================= */
+
 function checkAdmin(req, res, next) {
-  if (req.query.key !== ADMIN_KEY) return res.status(403).send("Unauthorized");
+  if (req.query.key !== ADMIN_KEY) {
+    return res.status(403).send("Unauthorized");
+  }
+
   next();
 }
 
-/* ================= RESTAURANT ================= */
+/* ================= RESTAURANTS ================= */
+
 app.post("/api/restaurants", checkAdmin, (req, res) => {
-  const { name, slug, theme_color, currency } = req.body;
+  const { name, slug, whatsapp_number, theme_color, currency } = req.body;
 
   db.run(
-    `INSERT INTO restaurants (name, slug, theme_color, currency)
-     VALUES (?,?,?,?)`,
-    [name, slug, theme_color || "#000", currency || "QAR"],
+    `INSERT INTO restaurants
+    (name, slug, whatsapp_number, theme_color, currency)
+    VALUES (?,?,?,?,?)`,
+    [name, slug, whatsapp_number, theme_color || "#000", currency || "QAR"],
     function (err) {
       if (err) return res.status(500).json({ error: err.message });
+
       res.json({ success: true });
     },
   );
 });
 
 app.get("/api/restaurants", checkAdmin, (req, res) => {
-  db.all(`SELECT * FROM restaurants`, [], (err, rows) => res.json(rows));
+  db.all(`SELECT * FROM restaurants`, [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+
+    res.json(rows);
+  });
 });
 
 app.get("/api/restaurant/:slug", (req, res) => {
@@ -88,21 +104,36 @@ app.get("/api/restaurant/:slug", (req, res) => {
     `SELECT * FROM restaurants WHERE slug=?`,
     [req.params.slug],
     (err, row) => {
-      if (err) {
-        console.error(err);
-        return res.status(500).json({ error: "Database error" });
-      }
+      if (err) return res.status(500).json({ error: "Database error" });
 
-      if (!row) {
-        return res.status(404).json({ error: "Restaurant not found" });
-      }
+      if (!row) return res.status(404).json({ error: "Restaurant not found" });
 
       res.json(row);
     },
   );
 });
 
+/* ===== UPDATE WHATSAPP NUMBER ===== */
+
+app.put("/api/restaurant-whatsapp/:slug", checkAdmin, (req, res) => {
+  const { whatsapp_number } = req.body;
+
+  if (!whatsapp_number)
+    return res.status(400).json({ error: "Number required" });
+
+  db.run(
+    `UPDATE restaurants SET whatsapp_number=? WHERE slug=?`,
+    [whatsapp_number, req.params.slug],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+
+      res.json({ success: true });
+    },
+  );
+});
+
 /* ================= CATEGORIES ================= */
+
 app.get("/api/categories/:slug", (req, res) => {
   db.all(
     `SELECT c.*
@@ -110,7 +141,11 @@ app.get("/api/categories/:slug", (req, res) => {
      JOIN restaurants r ON c.restaurant_id=r.id
      WHERE r.slug=?`,
     [req.params.slug],
-    (err, rows) => res.json(rows),
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+
+      res.json(rows);
+    },
   );
 });
 
@@ -119,10 +154,12 @@ app.post("/api/categories/:slug", checkAdmin, (req, res) => {
     `SELECT id FROM restaurants WHERE slug=?`,
     [req.params.slug],
     (err, r) => {
+      if (!r) return res.status(404).json({ error: "Restaurant not found" });
+
       db.run(
         `INSERT INTO categories (name, restaurant_id)
          VALUES (?,?)`,
-        [req.body.name.toLowerCase(), r.id],
+        [req.body.name.trim(), r.id],
         () => res.json({ success: true }),
       );
     },
@@ -136,7 +173,7 @@ app.put("/api/categories/:id", checkAdmin, (req, res) => {
 
   db.run(
     "UPDATE categories SET name=? WHERE id=?",
-    [name.toLowerCase(), req.params.id],
+    [name.trim(), req.params.id],
     function (err) {
       if (err) return res.status(500).json({ error: err.message });
 
@@ -146,6 +183,7 @@ app.put("/api/categories/:id", checkAdmin, (req, res) => {
 });
 
 /* ================= PRODUCTS ================= */
+
 app.get("/api/products/:slug", (req, res) => {
   db.all(
     `SELECT p.*
@@ -153,14 +191,18 @@ app.get("/api/products/:slug", (req, res) => {
      JOIN restaurants r ON p.restaurant_id=r.id
      WHERE r.slug=?`,
     [req.params.slug],
-    (err, rows) => res.json(rows),
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+
+      res.json(rows);
+    },
   );
 });
 
 app.post(
   "/api/products/:slug",
   checkAdmin,
-  upload.single("image"), // 👈 ADD THIS
+  upload.single("image"),
   (req, res) => {
     const { name_en, name_ar, price, category_id } = req.body;
 
@@ -168,14 +210,16 @@ app.post(
       `SELECT * FROM restaurants WHERE slug=?`,
       [req.params.slug],
       (err, r) => {
+        if (!r) return res.status(404).json({ error: "Restaurant not found" });
+
         const imagePath = req.file
           ? `uploads/${req.file.filename}`
           : generateImage(name_en, r.theme_color);
 
         db.run(
           `INSERT INTO products
-   (name_en,name_ar,price,category_id,restaurant_id,image)
-   VALUES (?,?,?,?,?,?)`,
+           (name_en,name_ar,price,category_id,restaurant_id,image)
+           VALUES (?,?,?,?,?,?)`,
           [name_en, name_ar, price, category_id, r.id, imagePath],
           () => res.json({ success: true }),
         );
@@ -190,19 +234,11 @@ app.put("/api/products/:id", checkAdmin, upload.single("image"), (req, res) => {
   if (!name_en || !price || !category_id)
     return res.status(400).json({ error: "Missing fields" });
 
-  let imagePath = null;
-
-  if (req.file) {
-    imagePath = `uploads/${req.file.filename}`;
-  }
+  let imagePath = req.file ? `uploads/${req.file.filename}` : null;
 
   const query = imagePath
-    ? `UPDATE products 
-         SET name_en=?, name_ar=?, price=?, category_id=?, image=? 
-         WHERE id=?`
-    : `UPDATE products 
-         SET name_en=?, name_ar=?, price=?, category_id=? 
-         WHERE id=?`;
+    ? `UPDATE products SET name_en=?, name_ar=?, price=?, category_id=?, image=? WHERE id=?`
+    : `UPDATE products SET name_en=?, name_ar=?, price=?, category_id=? WHERE id=?`;
 
   const params = imagePath
     ? [name_en, name_ar, price, category_id, imagePath, req.params.id]
@@ -210,23 +246,42 @@ app.put("/api/products/:id", checkAdmin, upload.single("image"), (req, res) => {
 
   db.run(query, params, function (err) {
     if (err) return res.status(500).json({ error: err.message });
+
     res.json({ success: true });
   });
 });
 
+app.delete("/api/categories/:id", checkAdmin, (req, res) => {
+  const id = req.params.id;
+
+  db.run("DELETE FROM products WHERE category_id=?", [id], () => {
+    db.run("DELETE FROM categories WHERE id=?", [id], () => {
+      res.json({ success: true });
+    });
+  });
+});
 /* ================= LOGO ================= */
+
 app.post(
   "/api/upload-logo/:slug",
   checkAdmin,
   upload.single("logo"),
   (req, res) => {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
     db.run(
       `UPDATE restaurants SET logo=? WHERE slug=?`,
       [`uploads/${req.file.filename}`, req.params.slug],
-      () => res.json({ success: true }),
+      function (err) {
+        if (err) return res.status(500).json({ error: err.message });
+
+        res.json({ success: true });
+      },
     );
   },
 );
+
+/* ================= IMPORT EXCEL ================= */
 
 app.post(
   "/api/import-excel/:slug",
@@ -243,70 +298,65 @@ app.post(
       db.get(
         "SELECT * FROM restaurants WHERE slug=?",
         [req.params.slug],
-        (err, restaurant) => {
-          if (err) return res.status(500).json({ error: err.message });
+        async (err, restaurant) => {
           if (!restaurant)
             return res.status(404).json({ error: "Restaurant not found" });
 
-          db.serialize(() => {
-            db.run("BEGIN TRANSACTION");
+          // 👉 STEP 1: Create categories
+          for (const row of rows) {
+            if (!row.category) continue;
 
-            const categoryIds = {};
+            const name = row.category.trim().toLowerCase();
 
-            rows.forEach((row) => {
-              if (!row.category || !row.name_en || !row.price) return;
-
-              const categoryName = row.category.trim().toLowerCase();
-
-              if (!categoryIds[categoryName]) {
-                db.run(
-                  `INSERT OR IGNORE INTO categories (name, restaurant_id)
-                   VALUES (?, ?)`,
-                  [categoryName, restaurant.id],
-                );
-              }
+            await new Promise((resolve) => {
+              db.run(
+                `INSERT OR IGNORE INTO categories (name, restaurant_id) VALUES (?, ?)`,
+                [name, restaurant.id],
+                resolve,
+              );
             });
+          }
 
-            rows.forEach((row) => {
-              if (!row.category || !row.name_en || !row.price) return;
+          // 👉 STEP 2: Insert products
+          for (const row of rows) {
+            if (!row.category || !row.name_en || !row.price) continue;
 
-              const categoryName = row.category.trim().toLowerCase();
+            const categoryName = row.category.trim().toLowerCase();
 
+            const cat = await new Promise((resolve) => {
               db.get(
-                `SELECT id FROM categories
-                 WHERE name=? AND restaurant_id=?`,
+                `SELECT id FROM categories WHERE name=? AND restaurant_id=?`,
                 [categoryName, restaurant.id],
-                (err, cat) => {
-                  if (!cat) return;
-
-                  const imagePath = generateImage(
-                    row.name_en,
-                    restaurant.theme_color,
-                  );
-
-                  db.run(
-                    `INSERT INTO products
-                     (name_en, name_ar, price, category_id, restaurant_id, image)
-                     VALUES (?, ?, ?, ?, ?, ?)`,
-                    [
-                      row.name_en,
-                      row.name_ar || "",
-                      row.price,
-                      cat.id,
-                      restaurant.id,
-                      imagePath,
-                    ],
-                  );
-                },
+                (err, row) => resolve(row),
               );
             });
 
-            db.run("COMMIT", (err) => {
-              if (err) return res.status(500).json({ error: err.message });
+            if (!cat) continue;
 
-              res.json({ success: true });
+            const imagePath = generateImage(
+              row.name_en,
+              restaurant.theme_color,
+            );
+
+            await new Promise((resolve) => {
+              db.run(
+                `INSERT INTO products
+                (name_en, name_ar, price, category_id, restaurant_id, image)
+                VALUES (?, ?, ?, ?, ?, ?)`,
+                [
+                  row.name_en,
+                  row.name_ar || "",
+                  row.price,
+                  cat.id,
+                  restaurant.id,
+                  imagePath,
+                ],
+                resolve,
+              );
             });
-          });
+          }
+
+          res.json({ success: true });
         },
       );
     } catch (err) {
@@ -316,28 +366,15 @@ app.post(
   },
 );
 
-app.post(
-  "/api/upload-product-image/:id",
-  checkAdmin,
-  upload.single("image"),
-  (req, res) => {
-    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-
-    const imagePath = `uploads/${req.file.filename}`;
-
-    db.run(
-      "UPDATE products SET image=? WHERE id=?",
-      [imagePath, req.params.id],
-      function (err) {
-        if (err) return res.status(500).json({ error: err.message });
-
-        res.json({ success: true, image: imagePath });
-      },
-    );
-  },
-);
+/* ================= DELETE ================= */
+app.delete("/api/products/:id", checkAdmin, (req, res) => {
+  db.run("DELETE FROM products WHERE id=?", [req.params.id], () =>
+    res.json({ success: true }),
+  );
+});
 
 /* ================= ROUTES ================= */
+
 app.get("/r/:slug", (req, res) =>
   res.sendFile(path.join(__dirname, "index.html")),
 );
@@ -350,19 +387,7 @@ app.get("/super-admin", checkAdmin, (req, res) =>
   res.sendFile(path.join(__dirname, "super-admin.html")),
 );
 
-/* ================= DELETE CATEGORY ================= */
-app.delete("/api/categories/:id", checkAdmin, (req, res) => {
-  db.run("DELETE FROM categories WHERE id=?", [req.params.id], () =>
-    res.json({ success: true }),
-  );
-});
-
-/* ================= DELETE PRODUCT ================= */
-app.delete("/api/products/:id", checkAdmin, (req, res) => {
-  db.run("DELETE FROM products WHERE id=?", [req.params.id], () =>
-    res.json({ success: true }),
-  );
-});
+/* ================= ERROR ================= */
 
 app.use((err, req, res, next) => {
   console.error(err);
@@ -372,6 +397,7 @@ app.use((err, req, res, next) => {
 app.listen(3000, () => console.log("🚀 SaaS Menu running on port 3000"));
 
 /* ================= IMAGE GENERATOR ================= */
+
 function generateImage(name, color) {
   const canvas = createCanvas(600, 400);
   const ctx = canvas.getContext("2d");
@@ -387,5 +413,6 @@ function generateImage(name, color) {
 
   const file = `uploads/${Date.now()}.png`;
   fs.writeFileSync(file, canvas.toBuffer());
+
   return file;
 }

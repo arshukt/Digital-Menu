@@ -2,24 +2,38 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title id="pageTitle">Digital Menu</title>
-    <link rel="stylesheet" href="style.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#b11226" />
+    <meta name="description" content="Digital restaurant menu - Order via WhatsApp" />
+    <title id="pageTitle">Menu</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css" />
   </head>
-
   <body>
     <header class="header">
       <img id="logo" />
       <h1 id="restaurantName"></h1>
     </header>
-
     <div class="search-container">
-      <input type="text" id="searchInput" placeholder="Search food..." />
+      <div class="search-wrapper">
+        <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input type="text" id="searchInput" placeholder="Search food..." />
+      </div>
     </div>
-
-    <div id="categories" class="category-bar"></div>
-    <div id="items" class="items-container"></div>
-
+    <div id="loading" style="display: none; text-align: center; padding: 40px 20px; color: #666;">
+      <div style="width: 40px; height: 40px; border: 3px solid #f3f4f6; border-top-color: var(--theme); border-radius: 50%; margin: 0 auto 16px; animation: spin 0.8s linear infinite;"></div>
+      <p style="font-size: 14px; font-weight: 500;">Loading menu...</p>
+    </div>
+    <div id="categories" class="category-bar" style="display: none;"></div>
+    <div id="items" class="items-container" style="display: none;"></div>
     <script src="/script.js"></script>
     <link rel="stylesheet" href="/style.css" />
   </body>

@@ -4,6 +4,33 @@ let editingCategoryId = null;
 let editingProductId = null;
 let allProducts = [];
 
+function showToast(message) {
+  const toast = document.createElement("div");
+  toast.innerText = message;
+
+  toast.style.position = "fixed";
+  toast.style.bottom = "20px";
+  toast.style.left = "50%";
+  toast.style.transform = "translateX(-50%)";
+  toast.style.background = "#333";
+  toast.style.color = "#fff";
+  toast.style.padding = "10px 16px";
+  toast.style.borderRadius = "8px";
+  toast.style.fontSize = "14px";
+  toast.style.zIndex = "9999";
+  toast.style.opacity = "0";
+  toast.style.transition = "opacity 0.3s ease";
+
+  document.body.appendChild(toast);
+
+  setTimeout(() => (toast.style.opacity = "1"), 10);
+
+  setTimeout(() => {
+    toast.style.opacity = "0";
+    setTimeout(() => toast.remove(), 300);
+  }, 2000);
+}
+
 function getSlug() {
   const cleanedPath = window.location.pathname.replace(/^\/+/, "");
   const parts = cleanedPath.split("/");
@@ -33,6 +60,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupEvents();
   loadCategories();
   loadProducts();
+  loadRestaurant();
 
   // Admin Search
   const searchInput = document.getElementById("adminProductSearch");
@@ -61,13 +89,14 @@ function setupEvents() {
   document.getElementById("saveProductBtn").onclick = saveProduct;
   document.getElementById("uploadLogoBtn").onclick = uploadLogo;
   document.getElementById("importBtn").onclick = importExcel;
+  document.getElementById("saveWhatsappBtn").onclick = saveWhatsapp;
 }
 
 /* ================= CATEGORIES ================= */
 
 async function loadCategories() {
   try {
-    const res = await fetch(`/api/categories/${SLUG}`);
+    const res = await fetch(`/api/categories/${SLUG}?t=${Date.now()}`);
     if (!res.ok) throw new Error();
 
     const categories = await res.json();
@@ -143,7 +172,8 @@ async function addCategory() {
     alert(editingCategoryId ? "Category updated" : "Category added");
     editingCategoryId = null;
     nameInput.value = "";
-    loadCategories();
+    await loadCategories();
+    await loadProducts();
   } catch {
     alert("Operation failed");
   }
@@ -165,17 +195,18 @@ async function deleteCategory(id) {
     if (!res.ok) throw new Error();
 
     alert("Category deleted");
-    loadCategories();
+    await loadCategories();
   } catch {
     alert("Delete failed");
   }
+  editingCategoryId = null;
 }
 
 /* ================= PRODUCTS ================= */
 
 async function loadProducts() {
   try {
-    const res = await fetch(`/api/products/${SLUG}`);
+    const res = await fetch(`/api/products/${SLUG}?t=${Date.now()}`);
     if (!res.ok) throw new Error();
 
     allProducts = await res.json();
@@ -261,7 +292,7 @@ async function saveProduct() {
 
     const res = await fetch(url, {
       method,
-      body: formData
+      body: formData,
     });
 
     if (!res.ok) throw new Error();
@@ -269,17 +300,14 @@ async function saveProduct() {
     alert(editingProductId ? "Product updated" : "Product added");
 
     editingProductId = null;
-    document.getElementById("productModal").style.display = "none";
-
     await loadProducts();
-
+    document.getElementById("productModal").style.display = "none";
   } catch (err) {
     alert("Save failed");
   }
 
   btn.disabled = false;
 }
-
 
 function editProduct(id, name_en, name_ar, price, category_id) {
   editingProductId = id;
@@ -333,6 +361,36 @@ async function uploadLogo() {
   }
 }
 
+async function saveWhatsapp() {
+  const number = document.getElementById("restaurantWhatsapp").value.trim();
+
+  if (!number) {
+    alert("Enter WhatsApp number");
+    return;
+  }
+
+  try {
+    const res = await fetch(
+      `/api/restaurant-whatsapp/${SLUG}?key=${ADMIN_KEY}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ whatsapp_number: number }),
+      },
+    );
+
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || "Failed");
+      return;
+    }
+
+    alert("WhatsApp updated successfully");
+  } catch {
+    alert("Failed to update WhatsApp");
+  }
+}
+
 /* ================= EXCEL ================= */
 
 async function importExcel() {
@@ -353,8 +411,22 @@ async function importExcel() {
     alert("Excel imported successfully");
 
     await loadCategories();
-    await await loadProducts();
+    await loadProducts();
   } catch {
     alert("Import failed");
+  }
+}
+
+async function loadRestaurant() {
+  const res = await fetch(`/api/restaurant/${SLUG}`);
+  const data = await res.json();
+
+  if (data.logo) {
+    document.getElementById("currentLogo").src =
+      "/" + data.logo + "?t=" + Date.now();
+  }
+
+  if (data.whatsapp_number) {
+    document.getElementById("restaurantWhatsapp").value = data.whatsapp_number;
   }
 }
