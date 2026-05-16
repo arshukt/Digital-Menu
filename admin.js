@@ -2,7 +2,9 @@
 
 let editingCategoryId = null;
 let editingProductId = null;
+let editingTableId = null;
 let allProducts = [];
+let tablesEnabled = false;
 
 function showToast(message) {
   const toast = document.createElement("div");
@@ -61,6 +63,7 @@ document.addEventListener("DOMContentLoaded", () => {
   loadCategories();
   loadProducts();
   loadRestaurant();
+  loadTables();
 
   // Admin Search
   const searchInput = document.getElementById("adminProductSearch");
@@ -90,6 +93,9 @@ function setupEvents() {
   document.getElementById("uploadLogoBtn").onclick = uploadLogo;
   document.getElementById("importBtn").onclick = importExcel;
   document.getElementById("saveWhatsappBtn").onclick = saveWhatsapp;
+  document.getElementById("addTableBtn").onclick = addTable;
+  document.getElementById("tablesEnabledToggle").onchange = toggleTablesEnabled;
+  document.getElementById("saveTableBtn").onclick = saveTableName;
 }
 
 /* ================= CATEGORIES ================= */
@@ -337,7 +343,157 @@ async function deleteProduct(id) {
   }
 }
 
-/* ================= LOGO ================= */
+/* ================= TABLES ================= */
+
+async function loadTables() {
+  try {
+    const res = await fetch(`/api/tables/${SLUG}?key=${ADMIN_KEY}&t=${Date.now()}`);
+    if (!res.ok) throw new Error();
+
+    const rows = await res.json();
+    renderTables(rows);
+  } catch {
+    document.getElementById("tableList").innerHTML = "<p>Failed to load tables</p>";
+  }
+}
+
+function renderTables(tables) {
+  const list = document.getElementById("tableList");
+  list.innerHTML = "";
+
+  if (tables.length === 0) {
+    list.innerHTML = "<p style='color:#999;font-size:13px;'>No tables added yet.</p>";
+    return;
+  }
+
+  tables.forEach((t) => {
+    const div = document.createElement("div");
+    div.className = "card";
+
+    const left = document.createElement("strong");
+    left.textContent = t.name;
+
+    const right = document.createElement("div");
+
+    const editBtn = document.createElement("button");
+    editBtn.textContent = "Edit";
+    editBtn.onclick = () => editTable(t.id, t.name);
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.textContent = "Delete";
+    deleteBtn.className = "delete";
+    deleteBtn.onclick = () => deleteTable(t.id);
+
+    right.appendChild(editBtn);
+    right.appendChild(deleteBtn);
+
+    div.appendChild(left);
+    div.appendChild(right);
+    list.appendChild(div);
+  });
+}
+
+async function addTable() {
+  const input = document.getElementById("newTableName");
+  const name = input.value.trim();
+  if (!name) return alert("Table name required");
+
+  const restaurantRes = await fetch(`/api/restaurant/${SLUG}?key=${ADMIN_KEY}`);
+  const restaurant = await restaurantRes.json();
+
+  try {
+    const res = await fetch(`/api/tables/${SLUG}?key=${ADMIN_KEY}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, restaurant_id: restaurant.id }),
+    });
+    if (!res.ok) throw new Error();
+
+    input.value = "";
+    alert("Table added");
+    loadTables();
+  } catch {
+    alert("Failed to add table");
+  }
+}
+
+function editTable(id, name) {
+  editingTableId = id;
+  document.getElementById("tableNameEdit").value = name;
+  document.getElementById("tableModal").style.display = "flex";
+}
+
+async function saveTableName() {
+  const name = document.getElementById("tableNameEdit").value.trim();
+  if (!name || !editingTableId) return;
+
+  try {
+    const res = await fetch(`/api/tables/${editingTableId}?key=${ADMIN_KEY}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+
+    if (!res.ok) throw new Error();
+
+    editingTableId = null;
+    document.getElementById("tableModal").style.display = "none";
+    loadTables();
+  } catch {
+    alert("Update failed");
+  }
+}
+
+async function deleteTable(id) {
+  if (!confirm("Delete this table?")) return;
+  try {
+    const res = await fetch(`/api/tables/${id}?key=${ADMIN_KEY}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) throw new Error();
+    loadTables();
+  } catch {
+    alert("Delete failed");
+  }
+}
+
+async function toggleTablesEnabled() {
+  const toggle = document.getElementById("tablesEnabledToggle");
+  const val = toggle.checked ? 1 : 0;
+  tablesEnabled = toggle.checked;
+
+  try {
+    const res = await fetch(
+      `/api/restaurant-tables-settings/${SLUG}?key=${ADMIN_KEY}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tables_enabled: val }),
+      },
+    );
+    if (!res.ok) throw new Error();
+  } catch {
+    alert("Failed to save setting");
+  }
+}
+
+async function loadRestaurant() {
+  const res = await fetch(`/api/restaurant/${SLUG}`);
+  const data = await res.json();
+
+  if (data.logo) {
+    document.getElementById("currentLogo").src =
+      "/" + data.logo + "?t=" + Date.now();
+  }
+
+  if (data.whatsapp_number) {
+    document.getElementById("restaurantWhatsapp").value = data.whatsapp_number;
+  }
+
+  // Table settings
+  tablesEnabled = !!(data.tables_enabled || 0);
+  document.getElementById("tablesEnabledToggle").checked = tablesEnabled;
+}
 
 async function uploadLogo() {
   const file = document.getElementById("logoFile").files[0];
@@ -417,16 +573,4 @@ async function importExcel() {
   }
 }
 
-async function loadRestaurant() {
-  const res = await fetch(`/api/restaurant/${SLUG}`);
-  const data = await res.json();
-
-  if (data.logo) {
-    document.getElementById("currentLogo").src =
-      "/" + data.logo + "?t=" + Date.now();
-  }
-
-  if (data.whatsapp_number) {
-    document.getElementById("restaurantWhatsapp").value = data.whatsapp_number;
-  }
-}
+// loadRestaurant already defined above (includes table settings toggle init)

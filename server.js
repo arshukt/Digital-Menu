@@ -37,6 +37,12 @@ db.serialize(() => {
     )
   `);
 
+  db.all("PRAGMA table_info(restaurants)", [], (err, cols) => {
+    if (err || !cols || !cols.some(c => c.name === "tables_enabled")) {
+      db.run("ALTER TABLE restaurants ADD COLUMN tables_enabled INTEGER DEFAULT 0");
+    }
+  });
+
   db.run(`
     CREATE TABLE IF NOT EXISTS categories (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -59,6 +65,15 @@ db.serialize(() => {
       category_id INTEGER,
       restaurant_id INTEGER,
       image TEXT
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS tables (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT,
+      restaurant_id INTEGER,
+      FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE
     )
   `);
 });
@@ -366,10 +381,111 @@ app.post(
   },
 );
 
+/* ================= TABLES ================= */
+
+app.get("/api/tables/:slug", checkAdmin, (req, res) => {
+  db.all(
+    `SELECT t.*
+     FROM tables t
+     JOIN restaurants r ON t.restaurant_id=r.id
+     WHERE r.slug=?`,
+    [req.params.slug],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(rows);
+    },
+  );
+});
+
+app.post("/api/tables/:slug", checkAdmin, (req, res) => {
+  const { name, restaurant_id } = req.body;
+
+  if (!name || !name.trim())
+    return res.status(400).json({ error: "Table name required" });
+
+  db.run(
+    `INSERT INTO tables (name, restaurant_id) VALUES (?,?)`,
+    [name.trim(), restaurant_id],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ success: true, id: this.lastID });
+    },
+  );
+});
+
+app.put("/api/tables/:id", checkAdmin, (req, res) => {
+  const { name } = req.body;
+
+  if (!name || !name.trim())
+    return res.status(400).json({ error: "Table name required" });
+
+  db.run(
+    "UPDATE tables SET name=? WHERE id=?",
+    [name.trim(), req.params.id],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ success: true });
+    },
+  );
+});
+
+app.delete("/api/tables/:id", checkAdmin, (req, res) => {
+  db.run("DELETE FROM tables WHERE id=?", [req.params.id], () =>
+    res.json({ success: true }),
+  );
+});
+
+app.get("/api/tables-public/:slug", (req, res) => {
+  db.all(
+    `SELECT t.*, r.tables_enabled
+     FROM tables t
+     JOIN restaurants r ON t.restaurant_id=r.id
+     WHERE r.slug=?`,
+    [req.params.slug],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+
+      if (rows.length === 0) {
+        db.get(
+          `SELECT tables_enabled FROM restaurants WHERE slug=?`,
+          [req.params.slug],
+          (err2, r) => {
+            res.json({ tables: [], tables_enabled: r ? (r.tables_enabled || 0) : 0 });
+          },
+        );
+        return;
+      }
+
+      res.json({
+        tables: rows,
+        tables_enabled: rows[0].tables_enabled || 0,
+      });
+    },
+  );
+});
+
 /* ================= DELETE ================= */
 app.delete("/api/products/:id", checkAdmin, (req, res) => {
   db.run("DELETE FROM products WHERE id=?", [req.params.id], () =>
     res.json({ success: true }),
+  );
+});
+
+app.put("/api/restaurant-tables-settings/:slug", checkAdmin, (req, res) => {
+  const { tables_enabled } = req.body;
+
+  if (typeof tables_enabled !== "number" && typeof tables_enabled !== "boolean")
+    return res.status(400).json({ error: "Invalid value" });
+
+  const val = tables_enabled ? 1 : 0;
+
+  db.run(
+    `UPDATE restaurants SET tables_enabled=? WHERE slug=?`,
+    [val, req.params.slug],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ success: true });
+    },
   );
 });
 

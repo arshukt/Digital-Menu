@@ -33,8 +33,24 @@
       <p style="font-size: 14px; font-weight: 500;">Loading menu...</p>
     </div>
     <div id="categories" class="category-bar" style="display: none;"></div>
+    <div id="tableSection" class="table-section" style="display: none;">
+      <label class="table-label">Dine-In / Takeaway</label>
+      <select id="tableSelect" class="table-select"></select>
+      <span id="tableHint" class="table-hint" style="display:none;"></span>
+    </div>
     <div id="items" class="items-container" style="display: none;"></div>
+
+    <!-- Table Selection Modal -->
+    <div class="modal-overlay" id="tableModalOverlay" style="display:none;">
+      <div class="modal-box" id="tableModalBox">
+        <h3 class="modal-title">Select Your Table</h3>
+        <p class="modal-subtitle">Please choose your table before placing the order</p>
+        <select id="modalTableSelect" class="modal-table-select"></select>
+        <button class="modal-confirm-btn" id="modalConfirmTableBtn">Confirm &amp; Place Order</button>
+        <button class="modal-cancel-btn" id="modalCancelTableBtn">Cancel</button>
+      </div>
+    </div>
+
     <script src="/script.js"></script>
-    <link rel="stylesheet" href="/style.css" />
   </body>
 </html>

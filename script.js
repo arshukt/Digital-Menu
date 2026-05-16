@@ -18,6 +18,11 @@ let categories = [];
 let currentCategory = null;
 let restaurantData = null;
 let currentThemeColor = '#b11226'; // default fallback
+let tablesEnabled = false;
+let selectedTable = "N/A";
+let tablesList = [];
+// Pending order captured before modal shows
+let pendingOrder = { id: null, name: "" };
 
 document.addEventListener("DOMContentLoaded", init);
 
@@ -31,22 +36,47 @@ async function init() {
   await loadRestaurant();
   await loadCategories();
   await loadProducts();
+  await loadTables();
+
+  document.getElementById("modalCancelTableBtn").onclick = closeTableModal;
+  document.getElementById("modalConfirmTableBtn").onclick = () => {
+    try {
+      if (tablesList.length === 0) { alert("No tables available"); return; }
+      const val = (document.getElementById("modalTableSelect") || {}).value || tablesList[0].name;
+      selectedTable = val || tablesList[0].name || "N/A";
+      closeTableModal();
+      if (typeof pendingOrder.id === "number" && pendingOrder.id > 0) {
+        sendWhatsAppOrder(pendingOrder.id, pendingOrder.name);
+      } else {
+        console.error("invalid pendingOrder", pendingOrder);
+        alert("Order error — try again");
+      }
+    } catch(e) {
+      console.error("modal confirm error:", e);
+      alert("Unexpected error: " + e.message);
+    }
+  };
   showLoading(false);
 }
 
 function showLoading(show) {
-  const loading = document.getElementById('loading');
-  const categories = document.getElementById('categories');
-  const items = document.getElementById('items');
+  const loading     = document.getElementById('loading');
+  const categories  = document.getElementById('categories');
+  const items       = document.getElementById('items');
+  const tableSection= document.getElementById('tableSection');
 
   if (show) {
-    loading.style.display = 'block';
+    loading.style.display  = 'block';
     categories.style.display = 'none';
-    items.style.display = 'none';
+    items.style.display    = 'none';
+    if (tableSection) tableSection.style.display = 'none';
   } else {
-    loading.style.display = 'none';
+    loading.style.display  = 'none';
     categories.style.display = 'flex';
-    items.style.display = 'grid';
+    items.style.display    = 'grid';
+    if (tableSection) {
+      tableSection.style.display = tablesEnabled ? 'flex' : 'none';
+    }
   }
 }
 
@@ -81,20 +111,6 @@ async function loadRestaurant() {
   // Create semi-transparent tint for backgrounds
   const rgb = hexToRgb(themeColor);
   if (rgb) {
-  // Set theme color from restaurant settings
-  let themeColor = restaurantData.theme_color || "#b11226";
-  if (!themeColor.startsWith('#')) {
-    themeColor = '#' + themeColor;
-  }
-  document.documentElement.style.setProperty("--theme", themeColor);
-
-  // Calculate darker variant for gradients
-  const darkerColor = adjustColorBrightness(themeColor, -30);
-  document.documentElement.style.setProperty("--theme-dark", darkerColor);
-
-  // Create semi-transparent tint variants for shadows/borders
-  const rgb = hexToRgb(themeColor);
-  if (rgb) {
     document.documentElement.style.setProperty("--theme-light", `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.12)`);
     document.documentElement.style.setProperty("--theme-alpha-08", `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.08)`);
     document.documentElement.style.setProperty("--theme-alpha-15", `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.15)`);
@@ -102,7 +118,9 @@ async function loadRestaurant() {
     document.documentElement.style.setProperty("--theme-alpha-30", `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.30)`);
     document.documentElement.style.setProperty("--theme-alpha-35", `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.35)`);
   }
-}
+
+  // Table selection enabled flag (defaults to off if not yet migrated)
+  tablesEnabled = !!(restaurantData.tables_enabled || 0);
 }
 
 function hexToRgb(hex) {
@@ -222,7 +240,7 @@ function renderProducts(query = "") {
      <button class="qty-btn qty-plus" onclick="increaseQty(${p.id})">+</button>
    </div>
 
-   <button class="whatsapp-btn" onclick="sendWhatsAppOrder(${p.id}, \`${p.name_en}\`)">
+    <button class="whatsapp-btn" onclick="tryPlaceOrder(${p.id}, \`${p.name_en}\`)">
      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 6px;">
        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
      </svg>
@@ -249,25 +267,113 @@ function decreaseQty(id) {
   }
 }
 
+/* ================= TABLES ================= */
+
+async function loadTables() {
+  try {
+    const res = await fetch(`/api/tables-public/${SLUG}?t=${Date.now()}`);
+    const data = await res.json();
+    console.log("[TABLE] loadTables response:", data);
+    tablesList = data.tables || [];
+
+    const barSelect = document.getElementById("tableSelect");
+    if (!barSelect) { console.log("[TABLE] no tableSelect element — tables disabled in HTML"); return; }
+
+    barSelect.innerHTML = "";
+
+    if (tablesEnabled && tablesList.length > 0) {
+      tablesList.forEach((t) => {
+        const opt = document.createElement("option");
+        opt.value = t.name || t.id || String(t);
+        opt.textContent = t.name || String(t);
+        barSelect.appendChild(opt);
+      });
+      barSelect.value = tablesList[0].name || tablesList[0];
+      selectedTable = tablesList[0].name || String(tablesList[0]);
+      console.log("[TABLE] bar select default:", selectedTable);
+    } else {
+      selectedTable = "N/A";
+      console.log("[TABLE] selectedTable=N/A  enabled=", tablesEnabled, "count=", tablesList.length);
+    }
+
+    barSelect.onchange = () => {
+      selectedTable = barSelect.value || "N/A";
+      const hint = document.getElementById("tableHint");
+      if (hint) hint.style.display = "none";
+      console.log("[TABLE] bar onchange ->", selectedTable);
+    };
+  } catch(err) {
+    console.error("[TABLE] loadTables error:", err);
+  }
+}
+
+function openTableModal(productId, productName) {
+  pendingOrder = { id: productId, name: productName };
+
+  const modalSelect = document.getElementById("modalTableSelect");
+  const overlay    = document.getElementById("tableModalOverlay");
+  if (!modalSelect || !overlay) return;
+
+  modalSelect.innerHTML = "";
+  tablesList.forEach((t) => {
+    console.log("[TABLE] loop item:", t, "type:", typeof t);
+    const opt = document.createElement("option");
+    opt.value = t.name || t.id || String(t);
+    opt.textContent = t.name || String(t);
+    modalSelect.appendChild(opt);
+  });
+
+  if (tablesList.length > 0) {
+    modalSelect.value = tablesList[0].name || tablesList[0];
+    selectedTable = tablesList[0].name || String(tablesList[0]);
+    console.log("[TABLE] modal default select:", selectedTable);
+  }
+
+  overlay.style.display = "flex";
+}
+
+function closeTableModal() {
+  const overlay = document.getElementById("tableModalOverlay");
+  if (overlay) overlay.style.display = "none";
+  // pendingOrder is cleared after the WhatsApp call completes, not here.
+}
+
+/* ================= ORDER BUTTON CLICK ================= */
+
+// Replace every onclick="sendWhatsAppOrder(…)" call with tryPlaceOrder()
+function tryPlaceOrder(id, name) {
+  console.log("[TABLE] tryPlaceOrder id=", id, "name=", name, "tablesEnabled=", tablesEnabled, "tablesList.length=", tablesList.length);
+  if (tablesEnabled) {
+    openTableModal(id, name);
+    return;
+  }
+  sendWhatsAppOrder(id, name);
+}
+
 /* ================= WHATSAPP ================= */
 
 function sendWhatsAppOrder(id, name) {
+  console.log("[WA] sendWhatsAppOrder id=", id, "name=", name, "tablesEnabled=", tablesEnabled, "selectedTable=", selectedTable, "whatsapp_number=", restaurantData?.whatsapp_number);
+
   const qtyEl = document.getElementById(`qty-${id}`);
   const quantity = qtyEl ? qtyEl.innerText : 1;
 
   const selectedCategory = categories.find(
     (cat) => Number(cat.id) === Number(currentCategory),
   );
-
   const categoryName = selectedCategory ? selectedCategory.name : "General";
 
-  const message = `Hello, I want to order:
+  let message = `Hello, I want to order:\n\n`;
+  message += `Restaurant: ${restaurantData.name}\n`;
+  message += `Category: ${categoryName}\n`;
+  message += `Item: ${name}\n`;
+  message += `Quantity: ${quantity}\n`;
 
-Category: ${categoryName}
-Item: ${name}
-Qty: ${quantity}
+  if (tablesEnabled) {
+    message += `Table: ${selectedTable}\n`;
+  }
 
-Thank you`;
+  message += `\nThank you!`;
 
   const number = restaurantData.whatsapp_number || "";
   if (!number) {
@@ -276,8 +382,20 @@ Thank you`;
   }
 
   const url = `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
-
-  window.open(url, "_blank");
+  console.log("[WA] opening:", url);   // ← visible in DevTools Console
+  // Use anchor-click to bypass popup blockers (more reliable than window.open
+  // when called from a nested handler rather than a direct user-event callback).
+  const a = document.createElement("a");
+  a.href = url;
+  a.target = "_blank";
+  a.rel   = "noopener noreferrer";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    try { a.remove(); } catch (_) {}
+    pendingOrder = { id: null, name: "" };
+  }, 1000);
+  return;
 }
 
 /* ================= SEARCH ================= */
@@ -291,22 +409,4 @@ if (search) {
   search.addEventListener('blur', () => {
     search.focus();
   });
-}
-
-function hexToRgb(hex) {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return result ? {
-    r: parseInt(result[1], 16),
-    g: parseInt(result[2], 16),
-    b: parseInt(result[3], 16)
-  } : null;
-}
-
-function adjustColorBrightness(hex, percent) {
-  const num = parseInt(hex.replace("#", ""), 16);
-  const amt = Math.round(2.55 * percent);
-  const R = Math.max(0, Math.min(255, (num >> 16) + amt));
-  const G = Math.max(0, Math.min(255, ((num >> 8) & 0x00FF) + amt));
-  const B = Math.max(0, Math.min(255, (num & 0x0000FF) + amt));
-  return "#" + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
 }
